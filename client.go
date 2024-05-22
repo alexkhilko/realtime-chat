@@ -18,25 +18,52 @@ func main() {
 	defer conn.Close()
 
 	reader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Print("send> ")
-		input, err := reader.ReadString('\n')
-		input = strings.TrimSpace(input)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		if input == "quit" || input == "exit" {
-			break
-		}
-		_, err = conn.Write([]byte(input + "\n"))
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		msg, err := bufio.NewReader(conn).ReadString('\n')
-		if err != nil {
-			log.Fatalln(err)
-		}
-		fmt.Print("recv> ", msg)
+	fmt.Print("name: ")
+	name, err := reader.ReadString('\n')
+	name = strings.TrimSpace(name)
+	if err != nil {
+		log.Fatalln(err)
 	}
+	done := make(chan bool)
+
+	go func(name string) {
+		reader := bufio.NewReader(os.Stdin)
+		for {
+			input, err := reader.ReadString('\n')
+			input = strings.TrimSpace(input)
+			if err != nil {
+				log.Fatalln(err)
+				done <- true
+				return
+			}
+			if input == "quit" || input == "exit" {
+				done <- true
+				return
+			}
+			msg := fmt.Sprintf("%s: %s \n", name, input)
+			fmt.Print(msg)
+			_, err = conn.Write([]byte(msg))
+			if err != nil {
+				log.Fatal(err)
+				done <- true
+				return
+			}
+		}
+	}(name)
+
+	go func() {
+		serverReader := bufio.NewReader(conn)
+		for {
+			message, err := serverReader.ReadString('\n')
+			if err != nil {
+				fmt.Println("Error reading from server:", err)
+				done <- true
+				return
+			}
+			fmt.Print(message)
+		}
+	}()
+
+	<-done
+	fmt.Println("connection closed")
 }
