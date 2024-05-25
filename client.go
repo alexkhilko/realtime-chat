@@ -32,7 +32,7 @@ func main() {
 			input, err := reader.ReadString('\n')
 			input = strings.TrimSpace(input)
 			if err != nil {
-				log.Fatalln(err)
+				fmt.Println(err)
 				done <- true
 				return
 			}
@@ -43,7 +43,7 @@ func main() {
 			msg := fmt.Sprintf("%s: %s \n", name, input)
 			_, err = conn.Write([]byte(msg))
 			if err != nil {
-				log.Fatal(err)
+				fmt.Println(err)
 				done <- true
 				return
 			}
