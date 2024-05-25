@@ -41,7 +41,6 @@ func main() {
 				return
 			}
 			msg := fmt.Sprintf("%s: %s \n", name, input)
-			fmt.Print(msg)
 			_, err = conn.Write([]byte(msg))
 			if err != nil {
 				log.Fatal(err)

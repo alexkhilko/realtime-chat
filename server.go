@@ -1,33 +1,89 @@
 package main
 
 import (
-    "io"
-    "log"
-    "net"
+	"fmt"
+	"io"
+	"log"
+	"net"
+    "bufio"
+)
+
+type Client struct {
+	Name string
+	Conn net.Conn
+}
+
+type Message struct {
+    User string
+    Msg string
+}
+
+var (
+    clients = make(map[string]Client)
+    broadcast = make(chan Message)
+    unregister = make(chan Client)
+    register = make(chan Client)
 )
 
 func main() {
     addr := "localhost:7007"
-    server, err := net.Listen("tcp", addr)
+    listener, err := net.Listen("tcp", addr)
     if err != nil {
         log.Fatalln(err)
     }
-    defer server.Close()
-
+    defer listener.Close()
     log.Println("Server is running on:", addr)
-
+    
+    go handleMessages()
+    
     for {
-        conn, err := server.Accept()
+        conn, err := listener.Accept()
+        fmt.Println("New connection", conn)
         if err != nil {
             log.Println("Failed to accept conn.", err)
             continue
         }
-
-        go func(conn net.Conn) {
-            defer func() {
-                conn.Close()
-            }()
-            io.Copy(conn, conn)
-        }(conn)
+        go handleConnection(conn)
     }
+}
+
+func handleMessages() {
+    for {
+        select {
+        case message := <-broadcast:
+            for name, client := range clients {
+                if name != message.User {
+                    client.Conn.Write([]byte(message.Msg))
+                }
+            }
+        case client := <-register:
+            log.Println("New client connected:", client.Name)
+            clients[client.Name] = client
+        case client := <-unregister:
+            log.Println("Client disconneted:", client.Name)
+            delete(clients, client.Name)
+        }
+    }
+}
+
+func handleConnection(conn net.Conn) {
+    defer conn.Close()
+    client := Client{
+        Name: conn.RemoteAddr().String(),
+        Conn: conn,
+    }
+    register <- client
+    reader := bufio.NewReader(conn)
+    for {
+        msg, err := reader.ReadString('\n')
+        if err != nil {
+            if err != io.EOF {
+                log.Fatalln("Failed to read data.", err)
+            }
+            break
+        } else {
+            broadcast <- Message{User: client.Name, Msg: msg}
+        }
+    }
+    unregister <- client
 }
