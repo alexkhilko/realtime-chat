@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
     "bufio"
+    "sync"
 )
 
 type Client struct {
@@ -23,6 +24,7 @@ var (
     broadcast = make(chan Message)
     unregister = make(chan Client)
     register = make(chan Client)
+    clientMutext = &sync.Mutex{}
 )
 
 func main() {
@@ -51,17 +53,23 @@ func handleMessages() {
     for {
         select {
         case message := <-broadcast:
+            clientMutext.Lock()
             for name, client := range clients {
                 if name != message.User {
                     client.Conn.Write([]byte(message.Msg))
                 }
             }
+            clientMutext.Unlock()
         case client := <-register:
-            log.Println("New client connected:", client.Name)
+            fmt.Println("New client connected:", client.Name)
+            clientMutext.Lock()
             clients[client.Name] = client
+            clientMutext.Unlock()
         case client := <-unregister:
-            log.Println("Client disconneted:", client.Name)
+            fmt.Println("Client disconneted:", client.Name)
+            clientMutext.Lock()
             delete(clients, client.Name)
+            clientMutext.Unlock()
         }
     }
 }
